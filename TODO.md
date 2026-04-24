@@ -1,0 +1,89 @@
+# SmartCart AI — Project Todo Tree
+
+## Backend
+- [ ] **Config** — Database & environment setup
+- [ ] **Controllers**
+  - [ ] `aiController.js` — AI/Chatbot endpoints
+  - [ ] `analyticsController.js` — Analytics & insights
+  - [ ] `authController.js` — Authentication logic
+  - [ ] `cartController.js` — Cart operations
+  - [ ] `optimizationController.js` — Price optimization
+  - [ ] `orderController.js` — Order management
+  - [ ] `productController.js` — Product catalog
+- [ ] **Data**
+  - [ ] `grocery_prices.csv` — Price dataset
+  - [ ] `raw/` — Raw data sources
+    - [ ] `bigbasket_products.csv`
+    - [ ] `Grocery_Inventory_and_Sales_Dataset.csv`
+    - [ ] `wfp_food_prices_ind.csv`
+    - [ ] `archiven/2026.csv`
+- [ ] **Middleware**
+  - [ ] `authMiddleware.js` — Route protection
+  - [ ] `errorHandler.js` — Global error handling
+- [ ] **Models**
+  - [ ] `Cart.js`
+  - [ ] `Order.js`
+  - [ ] `Price.js`
+  - [ ] `Product.js`
+  - [ ] `User.js`
+- [ ] **Routes**
+  - [ ] `aiRoutes.js`
+  - [ ] `analyticsRoutes.js`
+  - [ ] `authRoutes.js`
+  - [ ] `cartRoutes.js`
+  - [ ] `optimizationRoutes.js`
+  - [ ] `orderRoutes.js`
+  - [ ] `productRoutes.js`
+- [ ] **Scripts**
+  - [ ] `attachImages.js`
+  - [ ] `checkCount.js`
+  - [ ] `generateFinalDataset.js`
+  - [ ] `importKaggleData.js`
+  - [ ] `seedData.js`
+  - [ ] `seedHistory.js`
+- [ ] **Services**
+  - [ ] `priceUpdater.js`
+- [ ] **Utils**
+  - [ ] `generateToken.js`
+  - [ ] `predictionEngine.js`
+  - [ ] `productMatcher.js`
+- [ ] `server.js` — Entry point
+
+## Frontend
+- [ ] **Public**
+  - [ ] `index.html`
+  - [ ] `favicon.ico`, `logo192.png`, `logo512.png`
+  - [ ] `manifest.json`
+  - [ ] `robots.txt`
+- [ ] **Source**
+  - [ ] `api.js` — Axios/API client
+  - [ ] `socket.js` — WebSocket config
+  - [ ] **Components**
+    - [ ] `Chatbot.js`
+    - [ ] `Features.js`
+    - [ ] `Footer.js`
+    - [ ] `Hero.js`
+    - [ ] `Navbar.js`
+    - [ ] `ProtectedRoute.js`
+  - [ ] **Context**
+    - [ ] `AuthContext.js`
+  - [ ] **Pages**
+    - [ ] `Analytics.js`
+    - [ ] `Cart.js`
+    - [ ] `Dashboard.js`
+    - [ ] `GiftCards.js`
+    - [ ] `Home.js`
+    - [ ] `HotDeals.js`
+    - [ ] `Login.js`
+    - [ ] `PriceAlert.js`
+    - [ ] `PriceInsights.js`
+    - [ ] `Register.js`
+    - [ ] `Results.js`
+  - [ ] **Services**
+    - [ ] `authService.js`
+- [ ] `App.js` — Root component
+
+## General
+- [ ] `.gitignore` — Backend & frontend ignore rules
+- [ ] `zip_files.txt` — Archive tracking
+

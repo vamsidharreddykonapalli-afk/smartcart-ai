@@ -9,6 +9,9 @@ import Results from "./pages/Results";
 import PriceInsights from "./pages/PriceInsights";
 import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
+import HotDeals from "./pages/HotDeals";
+import PriceAlert from "./pages/PriceAlert";
+import GiftCards from "./pages/GiftCards";
 
 
 import Chatbot from "./components/Chatbot";
@@ -26,6 +29,9 @@ function App() {
           <Route path="/cart" element={<ProtectedRoute><Cart /></ProtectedRoute>} />
           <Route path="/results" element={<ProtectedRoute><Results /></ProtectedRoute>} />
           <Route path="/price-insights" element={<ProtectedRoute><PriceInsights /></ProtectedRoute>} />
+          <Route path="/hot-deals" element={<ProtectedRoute><HotDeals /></ProtectedRoute>} />
+          <Route path="/price-alert" element={<ProtectedRoute><PriceAlert /></ProtectedRoute>} />
+          <Route path="/gift-cards" element={<ProtectedRoute><GiftCards /></ProtectedRoute>} />
         </Routes>
       </BrowserRouter>
       <Chatbot />

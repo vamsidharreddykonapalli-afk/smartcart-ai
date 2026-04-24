@@ -3,16 +3,16 @@ import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import API from "../api";
 import Navbar from "../components/Navbar";
-import { 
-  FaStore, 
-  FaMagic, 
-  FaChartLine, 
-  FaArrowLeft, 
-  FaRobot, 
-  FaTag, 
-  FaPiggyBank, 
+import {
+  FaStore,
+  FaMagic,
+  FaChartLine,
+  FaArrowLeft,
+  FaRobot,
+  FaTag,
+  FaPiggyBank,
   FaCheckCircle,
-  FaExclamationCircle 
+  FaExclamationCircle
 } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 
@@ -27,9 +27,16 @@ const Results = () => {
     try {
       const res = await API.get("/optimize");
       setData(res.data);
-      
-      const aiRes = await API.get("/ai");
-      setAI(aiRes.data.suggestions);
+
+      try {
+        const aiRes = await API.post("/ai", {
+          cart: res.data.stores,
+          prices: { total: res.data.totalCost, savings: res.data.savings }
+        });
+        setAI(aiRes.data.suggestions);
+      } catch (aiErr) {
+        setAI("AI Error: Could not load suggestions at this time.");
+      }
     } catch (err) {
       console.error("Error", err);
     } finally {
@@ -44,7 +51,7 @@ const Results = () => {
   const handleCheckout = async () => {
     setCheckingOut(true);
     try {
-      const allItems = data.stores.flatMap(store => 
+      const allItems = data.stores.flatMap(store =>
         store.items.map(item => ({
           ...item,
           store: store.store
@@ -69,9 +76,9 @@ const Results = () => {
 
   const containerVariants = {
     hidden: { opacity: 0 },
-    visible: { 
+    visible: {
       opacity: 1,
-      transition: { staggerChildren: 0.15 } 
+      transition: { staggerChildren: 0.15 }
     }
   };
 
@@ -83,8 +90,8 @@ const Results = () => {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-slate-50 space-y-6">
-        <motion.div 
-          animate={{ rotate: 360, scale: [1, 1.2, 1] }} 
+        <motion.div
+          animate={{ rotate: 360, scale: [1, 1.2, 1] }}
           transition={{ repeat: Infinity, duration: 2 }}
           className="text-indigo-600"
         >
@@ -95,30 +102,57 @@ const Results = () => {
     );
   }
 
-  if (!data) return <p className="text-center mt-20">No data found.</p>;
+  if (!data || !data.stores) return <p className="text-center mt-20">No data found.</p>;
+
+  if (data.stores.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 space-y-6">
+        <FaExclamationCircle className="h-20 w-20 text-indigo-400 opacity-50" />
+        <h2 className="text-4xl font-black text-gray-900 tracking-tighter">Oops! No Matches Found.</h2>
+        <p className="text-gray-500 text-lg font-medium max-w-md text-center">We couldn't find pricing data for the specific items in your cart. Try adding different items like 'Milk', 'Curd', 'Apple', or 'Onion'.</p>
+        <button
+          onClick={() => navigate(-1)}
+          className="mt-6 flex items-center bg-indigo-600 text-white px-8 py-4 rounded-[2.5rem] font-black transition-all hover:bg-indigo-700 shadow-2xl hover:-translate-y-1"
+        >
+          <FaArrowLeft className="mr-3" />
+          <span>Go Back to Cart</span>
+        </button>
+      </div>
+    );
+  }
 
   return (
     <>
       <Navbar />
       <div className="min-h-screen bg-slate-50 pb-20 font-sans transition-all overflow-x-hidden">
         {/* Header Summary Section */}
-        <motion.header 
+        <motion.header
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="bg-indigo-600 text-white pt-20 pb-40 px-6 text-center relative overflow-hidden"
+          className="bg-indigo-600 text-white pt-10 pb-40 px-6 text-center relative overflow-hidden"
         >
+          <div className="max-w-4xl mx-auto text-left relative z-20">
+            {/* Page-level Back Button */}
+            <button
+              onClick={() => navigate(-1)}
+              className="flex items-center text-sm font-bold text-indigo-200 hover:text-white transition-colors mb-10 group"
+            >
+              <FaArrowLeft className="mr-2 group-hover:-translate-x-1 transition-transform" />
+              Back to previous page
+            </button>
+          </div>
           <div className="absolute inset-0 opacity-10">
-             <FaChartLine className="h-[600px] w-full" />
+            <FaChartLine className="h-[600px] w-full" />
           </div>
           <div className="relative z-10 max-w-4xl mx-auto">
-            <motion.h1 
+            <motion.h1
               initial={{ y: 30, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               className="text-6xl font-black tracking-tighter sm:text-7xl leading-tight"
             >
               Savings <span className="text-indigo-300">Optimized.</span>
             </motion.h1>
-            <motion.p 
+            <motion.p
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.2 }}
@@ -131,7 +165,7 @@ const Results = () => {
 
         {/* Impact Cards */}
         <div className="max-w-6xl mx-auto -mt-24 px-6 grid grid-cols-1 md:grid-cols-2 gap-8 relative z-20">
-          <motion.div 
+          <motion.div
             whileHover={{ y: -5 }}
             className="bg-white p-10 rounded-[3rem] shadow-2xl border border-indigo-50 flex items-center justify-between group"
           >
@@ -142,16 +176,16 @@ const Results = () => {
               <h2 className="text-5xl font-black text-gray-900 tracking-tighter">₹{data.totalCost}</h2>
             </div>
             <div className="h-16 w-16 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 shadow-inner group-hover:scale-110 transition-transform">
-               <FaTag className="h-8 w-8" />
+              <FaTag className="h-8 w-8" />
             </div>
           </motion.div>
 
-          <motion.div 
+          <motion.div
             whileHover={{ y: -5 }}
             className="bg-emerald-500 p-10 rounded-[3rem] shadow-2xl text-white flex items-center justify-between group overflow-hidden"
           >
             <div className="absolute right-0 bottom-0 opacity-10 group-hover:scale-150 transition-transform duration-1000">
-               <FaPiggyBank className="h-40 w-40" />
+              <FaPiggyBank className="h-40 w-40" />
             </div>
             <div className="relative z-10">
               <p className="text-sm font-black text-emerald-100 uppercase tracking-widest mb-1 flex items-center">
@@ -160,7 +194,7 @@ const Results = () => {
               <h2 className="text-5xl font-black tracking-tighter">₹{data.savings}</h2>
             </div>
             <div className="h-16 w-16 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center text-white shadow-xl relative z-10 group-hover:scale-110 transition-transform">
-               <FaPiggyBank className="h-8 w-8" />
+              <FaPiggyBank className="h-8 w-8" />
             </div>
           </motion.div>
         </div>
@@ -171,7 +205,7 @@ const Results = () => {
             Storewise <span className="text-indigo-600 ml-3">Breakdown</span>
           </h3>
 
-          <motion.div 
+          <motion.div
             variants={containerVariants}
             initial="hidden"
             animate="visible"
@@ -185,7 +219,7 @@ const Results = () => {
                 className="bg-white p-10 rounded-[3rem] shadow-xl border border-gray-100 relative group overflow-hidden"
               >
                 <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:scale-125 transition-transform duration-700">
-                   <FaStore className="h-32 w-32" />
+                  <FaStore className="h-32 w-32" />
                 </div>
                 <div className="flex items-center space-x-4 mb-8">
                   <div className="h-14 w-14 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 shadow-inner group-hover:rotate-12 transition-transform">
@@ -199,8 +233,8 @@ const Results = () => {
 
                 <div className="space-y-4">
                   {store.items.map((item, j) => (
-                    <motion.div 
-                      key={j} 
+                    <motion.div
+                      key={j}
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: 0.5 + j * 0.1 }}
@@ -219,16 +253,16 @@ const Results = () => {
           </motion.div>
 
           {/* Smart AI Suggestions */}
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             whileInView={{ opacity: 1, scale: 1 }}
             viewport={{ once: true }}
             className="bg-gradient-to-br from-indigo-900 to-slate-900 text-white p-12 rounded-[4rem] shadow-[0_30px_60px_-15px_rgba(30,41,59,0.3)] relative overflow-hidden"
           >
             <div className="absolute top-0 right-0 p-12 opacity-5 animate-pulse">
-               <FaMagic className="h-64 w-64" />
+              <FaMagic className="h-64 w-64" />
             </div>
-            
+
             <div className="relative z-10">
               <div className="flex items-center space-x-4 mb-8">
                 <div className="h-16 w-16 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center text-white border border-white/20 shadow-2xl animate-bounce">
@@ -255,8 +289,8 @@ const Results = () => {
               <FaArrowLeft />
               <span>Modify Cart</span>
             </Link>
-            
-            <button 
+
+            <button
               onClick={handleCheckout}
               disabled={checkingOut}
               className="flex items-center space-x-3 px-12 py-5 bg-indigo-600 text-white rounded-[2rem] font-black hover:bg-indigo-700 transition-all hover:-translate-y-1 shadow-2xl shadow-indigo-100 group disabled:opacity-50"

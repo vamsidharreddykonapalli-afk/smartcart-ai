@@ -1,7 +1,7 @@
 import React, { useContext } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
-import { FaHome, FaShoppingCart, FaChartBar, FaSignOutAlt, FaBolt } from "react-icons/fa";
+import { FaHome, FaShoppingCart, FaChartBar, FaSignOutAlt, FaBolt, FaFire, FaBell, FaGift } from "react-icons/fa";
 import { AuthContext } from "../context/AuthContext";
 
 const Navbar = () => {
@@ -22,6 +22,9 @@ const Navbar = () => {
     { name: "My Cart", path: "/cart", icon: FaShoppingCart },
     { name: "Optimized Results", path: "/results", icon: FaBolt },
     { name: "Price Insights", path: "/price-insights", icon: FaChartBar },
+    { name: "Hot Deals", path: "/hot-deals", icon: FaFire },
+    { name: "Price Alert", path: "/price-alert", icon: FaBell },
+    { name: "Gift Cards", path: "/gift-cards", icon: FaGift },
   ];
 
   const landingLinks = [

@@ -9,11 +9,13 @@ import {
   FaArrowRight, 
   FaShoppingBasket,
   FaTag,
-  FaArrowCircleRight
+  FaArrowCircleRight,
+  FaArrowLeft
 } from "react-icons/fa";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 const Cart = () => {
+  const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [productName, setProductName] = useState("");
   const [quantity, setQuantity] = useState(1);
@@ -42,7 +44,11 @@ const Cart = () => {
       setQuantity(1);
       fetchCart();
     } catch (err) {
-      console.error("Error adding item", err);
+      if (err.response && err.response.data && err.response.data.message) {
+        alert(err.response.data.message);
+      } else {
+        console.error("Error adding item", err);
+      }
     } finally {
       setLoading(false);
     }
@@ -68,6 +74,16 @@ const Cart = () => {
           animate={{ opacity: 1, y: 0 }}
           className="bg-white border-b border-gray-100 py-12 mb-10 shadow-sm"
         >
+          <div className="max-w-7xl mx-auto px-6 mb-4">
+            {/* Page-level Back Button */}
+            <button 
+              onClick={() => navigate(-1)}
+              className="flex items-center text-sm font-bold text-slate-500 hover:text-indigo-600 transition-colors group"
+            >
+              <FaArrowLeft className="mr-2 group-hover:-translate-x-1 transition-transform" />
+              Back to previous page
+            </button>
+          </div>
           <div className="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-6">
             <div>
               <div className="flex items-center space-x-3 mb-2">

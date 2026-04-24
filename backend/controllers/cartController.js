@@ -1,4 +1,6 @@
 const Cart = require("../models/Cart");
+const Product = require("../models/Product");
+const { getSearchRegex } = require("../utils/productMatcher");
 
 // GET CART
 exports.getCart = async (req, res) => {
@@ -14,6 +16,11 @@ exports.getCart = async (req, res) => {
 exports.addItem = async (req, res) => {
   try {
     const { productName, quantity } = req.body;
+
+    const productExists = await Product.findOne({ name: { $regex: getSearchRegex(productName) } });
+    if (!productExists) {
+      return res.status(400).json({ message: `There is no product like '${productName}' in our grocery database.` });
+    }
 
     let cart = await Cart.findOne({ userId: req.user });
 

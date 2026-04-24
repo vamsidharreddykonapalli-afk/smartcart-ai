@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, AreaChart, Area 
@@ -6,9 +7,10 @@ import {
 import { motion } from "framer-motion";
 import API from "../api";
 import Navbar from "../components/Navbar";
-import { FaWallet, FaPiggyBank, FaChartPie, FaChartLine, FaShoppingBag } from "react-icons/fa";
+import { FaWallet, FaPiggyBank, FaChartPie, FaChartLine, FaShoppingBag, FaArrowLeft } from "react-icons/fa";
 
 const Analytics = () => {
+  const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -37,6 +39,17 @@ const Analytics = () => {
     <>
       <Navbar />
       <div className="min-h-screen bg-slate-50 p-6 sm:p-12 font-sans overflow-x-hidden">
+        <div className="max-w-7xl mx-auto">
+          {/* Page-level Back Button */}
+          <button 
+            onClick={() => navigate(-1)}
+            className="flex items-center text-sm font-bold text-slate-500 hover:text-indigo-600 transition-colors mb-6 group"
+          >
+            <FaArrowLeft className="mr-2 group-hover:-translate-x-1 transition-transform" />
+            Back to previous page
+          </button>
+        </div>
+
         <header className="max-w-7xl mx-auto mb-16">
           <h1 className="text-6xl font-black text-slate-900 tracking-tighter leading-none mb-4">
              Shopping <span className="text-indigo-600">Analytics.</span>

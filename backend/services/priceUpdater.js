@@ -4,7 +4,6 @@ const { io } = require("../server");
 
 // Run every 1 minute for demonstration (Change to '0 * * * *' for 1 hour in production)
 cron.schedule("*/1 * * * *", async () => {
-  console.log("Running simulated price adjustment...");
 
   try {
     // Limit to a random subset to prevent Out Of Memory crashes on large datasets
@@ -33,8 +32,6 @@ cron.schedule("*/1 * * * *", async () => {
           newPrice,
           store: priceObj.store,
         });
-        
-        console.log(`Alert: ${priceObj.store} price changed ${oldPrice} -> ${newPrice}`);
       }
     }
   } catch (err) {

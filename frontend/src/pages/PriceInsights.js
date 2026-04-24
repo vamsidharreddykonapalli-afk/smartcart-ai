@@ -3,11 +3,13 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceArea, Line, ComposedChart 
 } from "recharts";
 import { motion, AnimatePresence } from "framer-motion";
-import { FaSearch, FaStore, FaHistory, FaCheckCircle } from "react-icons/fa";
+import { FaSearch, FaStore, FaHistory, FaCheckCircle, FaArrowLeft } from "react-icons/fa";
+import { useNavigate } from "react-router-dom";
 import API from "../api";
 import Navbar from "../components/Navbar";
 
 const PriceInsights = () => {
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("Milk");
   const [historyData, setHistoryData] = useState([]);
   const [comparisonData, setComparisonData] = useState([]);
@@ -76,6 +78,16 @@ const PriceInsights = () => {
     <>
       <Navbar />
       <div className="min-h-screen bg-slate-50 p-6 sm:p-12 font-sans overflow-x-hidden">
+        <div className="max-w-7xl mx-auto">
+          {/* Page-level Back Button */}
+          <button 
+            onClick={() => navigate(-1)}
+            className="flex items-center text-sm font-bold text-slate-500 hover:text-indigo-600 transition-colors mb-6 group"
+          >
+            <FaArrowLeft className="mr-2 group-hover:-translate-x-1 transition-transform" />
+            Back to previous page
+          </button>
+        </div>
         <header className="max-w-7xl mx-auto mb-12">
           <motion.h1 
             initial={{ opacity: 0, x: -20 }}

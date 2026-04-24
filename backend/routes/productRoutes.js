@@ -5,11 +5,13 @@ const {
   addProduct,
   addPrice,
   getPrices,
-  getProducts
+  getProducts,
+  getHotDeals
 } = require("../controllers/productController");
 
 router.post("/add-product", addProduct);
 router.post("/add-price", addPrice);
+router.get("/hot-deals", getHotDeals);
 router.get("/prices/:productName", getPrices);
 router.get("/compare/:productName", getPrices);
 router.get("/", getProducts);
