@@ -23,14 +23,20 @@ io.on("connection", (socket) => {
   });
 });
 
-// Export io for use in other files
-module.exports = { io };
+// Export app, server, and io for use in other files
+module.exports = { app, server, io };
 
 // Routes
 const authRoutes = require("./routes/authRoutes");
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: [
+    'http://localhost:3000',
+    'https://smartcart-ai-frontend.vercel.app'
+  ],
+  credentials: true
+}));
 app.use(express.json());
 
 // Auth Routes
@@ -73,14 +79,16 @@ const dbURI = process.env.MONGO_URI && process.env.MONGO_URI !== "your_mongodb_c
   ? process.env.MONGO_URI 
   : "mongodb://localhost:27017/smartcart-ai";
 
-mongoose.connect(dbURI)
-.then(() => {
-  console.log("MongoDB Connected");
-  // Activate price update service
-  require("./services/priceUpdater");
-})
-.catch(err => console.log(err));
+if (process.env.NODE_ENV !== 'test') {
+  mongoose.connect(dbURI)
+  .then(() => {
+    console.log("MongoDB Connected");
+    // Activate price update service
+    require("./services/priceUpdater");
+  })
+  .catch(err => console.log(err));
 
-// Start server
-const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+  // Start server
+  const PORT = process.env.PORT || 5000;
+  server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+}
