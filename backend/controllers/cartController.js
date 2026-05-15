@@ -17,29 +17,30 @@ exports.addItem = async (req, res) => {
   try {
     const { productName, quantity } = req.body;
 
-    // Fuzzy match: case-insensitive, partial name match
+    // Case-insensitive fuzzy match
     const searchRegex = new RegExp(productName.trim(), "i");
     const productExists = await Product.findOne({ name: { $regex: searchRegex } });
     if (!productExists) {
-      return res.status(400).json({ message: `There is no product like '${productName}' in our grocery database. Try: Milk, Tomato, Onion, Rice, Chicken, Eggs, Atta, Apple, Banana.` });
+      return res.status(400).json({ message: `No product like '${productName}' found. Try: Milk, Tomato, Onion, Rice, Chicken, Eggs, Atta, Apple, Banana.` });
     }
-    // Use the actual matched product name for consistency
-    const matchedName = productExists.name;
+
+    // Always use the canonical DB name (fixes case sensitivity)
+    const canonicalName = productExists.name;
 
     let cart = await Cart.findOne({ userId: req.user });
-
     if (!cart) {
       cart = new Cart({ userId: req.user, items: [] });
     }
 
+    // Match existing item case-insensitively too
     const existingItem = cart.items.find(
-      item => item.productName === productName
+      item => item.productName.toLowerCase() === canonicalName.toLowerCase()
     );
 
     if (existingItem) {
       existingItem.quantity += quantity;
     } else {
-      cart.items.push({ productName, quantity });
+      cart.items.push({ productName: canonicalName, quantity });
     }
 
     await cart.save();
