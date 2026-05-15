@@ -16,34 +16,35 @@ exports.findBestMatch = async (ProductModel, searchTerm) => {
   const term = searchTerm.trim();
   if (!term) return null;
 
-  // Tier 1: Exact match (case-insensitive)
-  let product = await ProductModel.findOne({
+  // Tier 1: Exact match (case-insensitive) — e.g. "milk" → "Milk"
+  const exactMatches = await ProductModel.find({
     name: { $regex: new RegExp(`^${escapeRegex(term)}$`, "i") }
-  });
-  if (product) return product;
+  }).limit(5);
+  if (exactMatches.length > 0) {
+    return exactMatches.sort((a, b) => a.name.length - b.name.length)[0];
+  }
 
-  // Tier 2: Starts with the term (e.g. "milk" → "Milk 500ml")
-  product = await ProductModel.findOne({
-    name: { $regex: new RegExp(`^${escapeRegex(term)}`, "i") }
-  });
-  if (product) return product;
+  // Tier 2: Starts-with match — sort by length so "Milk" beats "Milk Teeth Toothbrush"
+  const startsWithMatches = await ProductModel.find({
+    name: { $regex: new RegExp(`^${escapeRegex(term)}\\b`, "i") }
+  }).limit(10);
+  if (startsWithMatches.length > 0) {
+    return startsWithMatches.sort((a, b) => a.name.length - b.name.length)[0];
+  }
 
-  // Tier 3: Word boundary — term is a standalone word (e.g. "milk" → "Amul Milk")
-  // Sort by name length (ascending) so we prefer shorter/simpler names
-  const wordBoundaryMatches = await ProductModel.find({
+  // Tier 3: Word-boundary match — "milk" → "Amul Milk" (prefers shortest name)
+  const wordMatches = await ProductModel.find({
     name: { $regex: new RegExp(`\\b${escapeRegex(term)}\\b`, "i") }
-  }).sort({ name: 1 }).limit(5);
-
-  if (wordBoundaryMatches.length > 0) {
-    // Prefer the shortest name (most likely the generic product)
-    return wordBoundaryMatches.sort((a, b) => a.name.length - b.name.length)[0];
+  }).limit(10);
+  if (wordMatches.length > 0) {
+    return wordMatches.sort((a, b) => a.name.length - b.name.length)[0];
   }
 
   // Tier 4: Contains fallback (only for longer terms > 4 chars)
   if (term.length > 4) {
     const containsMatches = await ProductModel.find({
       name: { $regex: new RegExp(escapeRegex(term), "i") }
-    }).limit(5);
+    }).limit(10);
     if (containsMatches.length > 0) {
       return containsMatches.sort((a, b) => a.name.length - b.name.length)[0];
     }
