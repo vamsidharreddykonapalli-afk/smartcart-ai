@@ -74,113 +74,20 @@ app.use("/api/analytics", analyticsRoutes);
 const aiRoutes = require("./routes/aiRoutes");
 app.use("/api/ai", aiRoutes);
 
-// One-time Seed Route (protected by secret key)
+// One-time Seed Route - imports real grocery_prices.csv data into Atlas
 app.get("/api/seed", async (req, res) => {
   if (req.query.secret !== "smartcart-seed-2024") {
     return res.status(403).json({ message: "Forbidden" });
   }
   try {
-    const Product = require("./models/Product");
-    const Price = require("./models/Price");
-    const Order = require("./models/Order");
-    const mongoose = require("mongoose");
-
-    await Product.deleteMany({});
-    await Price.deleteMany({});
-    await Order.deleteMany({});
-
-    const productsData = [
-      { name: "Milk (1L)", category: "Dairy" },
-      { name: "Butter (500g)", category: "Dairy" },
-      { name: "Paneer (200g)", category: "Dairy" },
-      { name: "Curd (1kg)", category: "Dairy" },
-      { name: "Cheese Slices", category: "Dairy" },
-      { name: "Basmati Rice (5kg)", category: "Staples" },
-      { name: "Atta (10kg)", category: "Staples" },
-      { name: "Toor Dal (1kg)", category: "Staples" },
-      { name: "Moong Dal (1kg)", category: "Staples" },
-      { name: "Sugar (1kg)", category: "Staples" },
-      { name: "Salt (1kg)", category: "Staples" },
-      { name: "Sunflower Oil (1L)", category: "Staples" },
-      { name: "Ghee (500ml)", category: "Staples" },
-      { name: "Onion (1kg)", category: "Produce" },
-      { name: "Potato (1kg)", category: "Produce" },
-      { name: "Tomato (1kg)", category: "Produce" },
-      { name: "Banana (6 units)", category: "Produce" },
-      { name: "Apple (1kg)", category: "Produce" },
-      { name: "Spinach", category: "Produce" },
-      { name: "Garlic (100g)", category: "Produce" },
-      { name: "Ginger (100g)", category: "Produce" },
-      { name: "Whole Wheat Bread", category: "Bakery" },
-      { name: "Chocolate Cookies", category: "Snacks" },
-      { name: "Potato Chips", category: "Snacks" },
-      { name: "Mixed Nuts (200g)", category: "Snacks" },
-      { name: "Peanut Butter", category: "Snacks" },
-      { name: "Dark Chocolate", category: "Snacks" },
-      { name: "Green Tea (25 bags)", category: "Beverages" },
-      { name: "Instant Coffee (100g)", category: "Beverages" },
-      { name: "Orange Juice (1L)", category: "Beverages" },
-      { name: "Sparkling Water", category: "Beverages" },
-      { name: "Dish Soap (500ml)", category: "Household" },
-      { name: "Laundry Liquid (2L)", category: "Household" },
-      { name: "Floor Cleaner", category: "Household" },
-      { name: "Trash Bags", category: "Household" },
-      { name: "Hand Wash (250ml)", category: "Bathroom" },
-      { name: "Shampoo (400ml)", category: "Bathroom" },
-      { name: "Toothpaste (150g)", category: "Bathroom" },
-      { name: "Turmeric Powder (200g)", category: "Spices" },
-      { name: "Chilli Powder (200g)", category: "Spices" },
-      { name: "Cumin Seeds (100g)", category: "Spices" },
-      { name: "Coriander Powder", category: "Spices" },
-      { name: "Black Pepper", category: "Spices" },
-      { name: "Eggs (12 pack)", category: "Dairy" },
-      { name: "Amul Gold Milk (500ml)", category: "Dairy" },
-      { name: "Maggi Noodles (12 pack)", category: "Snacks" },
-      { name: "Bournvita (500g)", category: "Beverages" },
-      { name: "Lays Chips (26g)", category: "Snacks" },
-    ];
-
-    const storeNames = ["BigBasket", "Zepto", "Blinkit", "Instamart", "JioMart", "Amazon Fresh"];
-    const products = await Product.insertMany(productsData);
-
-    const pricesData = [];
-    products.forEach((product) => {
-      const basePrice = Math.floor(Math.random() * (600 - 40) + 40);
-      storeNames.forEach((store) => {
-        const variation = (Math.random() * 0.3) - 0.15;
-        pricesData.push({
-          productId: product._id,
-          store,
-          price: Math.round(basePrice * (1 + variation))
-        });
-      });
-    });
-    await Price.insertMany(pricesData);
-
-    const dummyUserId = new mongoose.Types.ObjectId();
-    const ordersData = [];
-    for (let i = 0; i < 8; i++) {
-      const orderDate = new Date();
-      orderDate.setDate(orderDate.getDate() - (8 - i) * 3);
-      const orderItems = [];
-      const numItems = Math.floor(Math.random() * 5) + 3;
-      let totalCost = 0, savings = 0;
-      for (let j = 0; j < numItems; j++) {
-        const product = products[Math.floor(Math.random() * products.length)];
-        const price = Math.floor(Math.random() * 200) + 50;
-        orderItems.push({ productName: product.name, quantity: Math.floor(Math.random() * 3) + 1, price, store: storeNames[Math.floor(Math.random() * storeNames.length)], category: product.category });
-        totalCost += price;
-        savings += Math.floor(price * 0.15);
-      }
-      ordersData.push({ userId: dummyUserId, items: orderItems, totalCost, savings, date: orderDate });
-    }
-    await Order.insertMany(ordersData);
-
-    res.json({ success: true, message: `✅ Seeded ${products.length} products, ${pricesData.length} prices, ${ordersData.length} orders into MongoDB Atlas!` });
+    const seedFromCSV = require("./scripts/seedFromCSV");
+    const result = await seedFromCSV();
+    res.json({ success: true, message: `✅ Seeded ${result.products} real products, ${result.prices} prices, ${result.orders} orders from grocery_prices.csv into MongoDB Atlas!` });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+
 
 // Test route
 app.get("/", (req, res) => {
