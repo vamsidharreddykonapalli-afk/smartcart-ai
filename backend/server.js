@@ -31,10 +31,18 @@ const authRoutes = require("./routes/authRoutes");
 
 // Middleware
 app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'https://smartcart-ai-frontend.vercel.app'
-  ],
+  origin: function (origin, callback) {
+    const allowedOrigins = [
+      'http://localhost:3000',
+      process.env.CLIENT_URL,
+    ].filter(Boolean);
+    // Allow all vercel.app subdomains
+    if (!origin || allowedOrigins.includes(origin) || /\.vercel\.app$/.test(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true
 }));
 app.use(express.json());

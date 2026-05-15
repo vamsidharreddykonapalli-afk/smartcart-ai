@@ -13,7 +13,7 @@ const HotDeals = () => {
   useEffect(() => {
     const fetchDeals = async () => {
       try {
-        const { data } = await axios.get("http://localhost:5000/api/products/hot-deals");
+        const { data } = await axios.get(`${process.env.REACT_APP_API_URL || "http://localhost:5000/api"}/products/hot-deals`);
         setDeals(data);
       } catch (error) {
         console.error("Error fetching deals", error);
