@@ -6,157 +6,146 @@ const Product = require("../models/Product");
 const Price = require("../models/Price");
 const Order = require("../models/Order");
 
-const seedFromCSV = async (mongoURI) => {
+const STORES = ["BigBasket", "Zepto", "Blinkit", "Instamart", "JioMart", "Amazon Fresh"];
+
+// Price variation multipliers per store (relative to BigBasket base price)
+const STORE_MULTIPLIERS = {
+  "BigBasket":    1.00,
+  "Zepto":        1.05,
+  "Blinkit":      1.08,
+  "Instamart":    1.03,
+  "JioMart":      0.97,
+  "Amazon Fresh": 1.02,
+};
+
+function generateStorePrices(basePrice) {
+  return STORES.map(store => ({
+    store,
+    price: Math.round(basePrice * STORE_MULTIPLIERS[store] * (0.92 + Math.random() * 0.16))
+  }));
+}
+
+const seedFromCSV = async () => {
   await Product.deleteMany({});
   await Price.deleteMany({});
   await Order.deleteMany({});
 
-  const dataPath = path.join(__dirname, "..", "data", "grocery_prices.csv");
-  const productsMap = new Map();
-  const rawPrices = [];
+  const bbPath = path.join(__dirname, "..", "data", "bigbasket_products.csv");
+  const wfpPath = path.join(__dirname, "..", "data", "grocery_prices.csv");
 
-  await new Promise((resolve, reject) => {
-    fs.createReadStream(dataPath)
-      .pipe(csv())
-      .on("data", (row) => {
-        if (productsMap.size >= 500) return;
-        const name = row.product_name;
-        if (!name) return;
-        if (!productsMap.has(name)) {
-          productsMap.set(name, {
-            name,
-            category: row.category || "Other",
-            brand: row.brand || "Generic",
-            unit: row.unit || "pc"
-          });
-        }
-        if (row.store && row.price && !isNaN(parseFloat(row.price))) {
-          rawPrices.push({ productName: name, store: row.store, price: parseFloat(row.price) });
-        }
-      })
-      .on("end", resolve)
-      .on("error", reject);
-  });
+  const productsMap = new Map(); // name -> { name, category, brand, basePrice }
+  const MAX_PRODUCTS = 1000;
 
-  const insertedProducts = await Product.insertMany(Array.from(productsMap.values()));
-  const nameToId = {};
-  insertedProducts.forEach(p => { nameToId[p.name] = p._id; });
-
-  const pricesData = rawPrices
-    .filter(p => nameToId[p.productName])
-    .map(p => ({ productId: nameToId[p.productName], store: p.store, price: p.price }));
-  await Price.insertMany(pricesData);
-
-  // --- Add common Indian grocery items NOT in the CSV ---
-  const storeNames = ["BigBasket", "Zepto", "Blinkit", "Instamart", "JioMart", "Amazon Fresh"];
-  const commonGroceries = [
-    { name: "Milk", category: "Dairy", prices: [62, 60, 64, 61, 58, 65] },
-    { name: "Curd", category: "Dairy", prices: [45, 42, 48, 44, 40, 50] },
-    { name: "Butter", category: "Dairy", prices: [55, 52, 57, 54, 50, 59] },
-    { name: "Paneer", category: "Dairy", prices: [85, 80, 90, 83, 78, 92] },
-    { name: "Ghee", category: "Dairy", prices: [580, 560, 600, 575, 550, 610] },
-    { name: "Eggs", category: "Dairy", prices: [90, 85, 95, 88, 82, 98] },
-    { name: "Cheese", category: "Dairy", prices: [120, 115, 125, 118, 110, 130] },
-    { name: "Atta", category: "Staples", prices: [280, 265, 290, 275, 260, 295] },
-    { name: "Maida", category: "Staples", prices: [45, 42, 48, 44, 40, 50] },
-    { name: "Basmati Rice", category: "Staples", prices: [220, 210, 230, 218, 205, 235] },
-    { name: "Toor Dal", category: "Staples", prices: [140, 135, 145, 138, 130, 150] },
-    { name: "Moong Dal", category: "Staples", prices: [130, 125, 135, 128, 122, 140] },
-    { name: "Chana Dal", category: "Staples", prices: [95, 90, 100, 93, 88, 105] },
-    { name: "Urad Dal", category: "Staples", prices: [145, 140, 150, 143, 136, 155] },
-    { name: "Salt", category: "Staples", prices: [25, 22, 28, 24, 20, 30] },
-    { name: "Sugar", category: "Staples", prices: [50, 48, 52, 49, 46, 54] },
-    { name: "Sunflower Oil", category: "Staples", prices: [145, 138, 152, 142, 135, 155] },
-    { name: "Mustard Oil", category: "Staples", prices: [175, 168, 182, 172, 165, 185] },
-    { name: "Olive Oil", category: "Staples", prices: [680, 650, 710, 675, 640, 720] },
-    { name: "Bread", category: "Bakery", prices: [42, 40, 45, 41, 38, 48] },
-    { name: "Brown Bread", category: "Bakery", prices: [55, 52, 58, 54, 50, 60] },
-    { name: "Maggi Noodles", category: "Snacks", prices: [14, 13, 15, 14, 12, 16] },
-    { name: "Biscuits", category: "Snacks", prices: [30, 28, 32, 29, 26, 34] },
-    { name: "Potato Chips", category: "Snacks", prices: [20, 18, 22, 19, 17, 24] },
-    { name: "Namkeen", category: "Snacks", prices: [65, 60, 70, 63, 58, 72] },
-    { name: "Tea", category: "Beverages", prices: [280, 265, 295, 275, 260, 300] },
-    { name: "Coffee", category: "Beverages", prices: [350, 335, 365, 345, 330, 370] },
-    { name: "Cold Drink", category: "Beverages", prices: [45, 42, 48, 44, 40, 50] },
-    { name: "Juice", category: "Beverages", prices: [120, 115, 125, 118, 110, 130] },
-    { name: "Water Bottle", category: "Beverages", prices: [20, 18, 22, 19, 17, 24] },
-    { name: "Shampoo", category: "Personal Care", prices: [185, 175, 195, 182, 170, 200] },
-    { name: "Soap", category: "Personal Care", prices: [42, 40, 45, 41, 38, 48] },
-    { name: "Toothpaste", category: "Personal Care", prices: [95, 90, 100, 93, 88, 105] },
-    { name: "Hand Wash", category: "Personal Care", prices: [115, 110, 120, 113, 108, 125] },
-    { name: "Detergent", category: "Household", prices: [250, 240, 260, 248, 235, 265] },
-    { name: "Dish Wash", category: "Household", prices: [65, 62, 68, 64, 60, 70] },
-    { name: "Turmeric Powder", category: "Spices", prices: [65, 60, 70, 63, 58, 72] },
-    { name: "Red Chilli Powder", category: "Spices", prices: [75, 70, 80, 73, 68, 82] },
-    { name: "Coriander Powder", category: "Spices", prices: [55, 52, 58, 54, 50, 60] },
-    { name: "Garam Masala", category: "Spices", prices: [95, 90, 100, 93, 88, 105] },
-    { name: "Cumin Seeds", category: "Spices", prices: [125, 120, 130, 123, 118, 135] },
-    { name: "Chicken", category: "Meat", prices: [280, 265, 295, 275, 260, 300] },
-    { name: "Mutton", category: "Meat", prices: [750, 720, 780, 745, 710, 790] },
-    { name: "Banana", category: "Fruits", prices: [50, 48, 52, 49, 46, 54] },
-    { name: "Apple", category: "Fruits", prices: [180, 170, 190, 177, 165, 195] },
-    { name: "Mango", category: "Fruits", prices: [120, 115, 125, 118, 110, 130] },
-    { name: "Watermelon", category: "Fruits", prices: [60, 55, 65, 58, 52, 68] },
-    { name: "Grapes", category: "Fruits", prices: [90, 85, 95, 88, 82, 98] },
-    { name: "Orange", category: "Fruits", prices: [80, 75, 85, 78, 72, 88] },
-  ];
-  // Remove items already seeded from CSV to avoid duplicate key errors
-  const csvNames = new Set(Array.from(productsMap.keys()).map(n => n.toLowerCase()));
-  const filteredGroceries = commonGroceries.filter(item => !csvNames.has(item.name.toLowerCase()));
-
-  const extraProducts = filteredGroceries.map(item => ({ name: item.name, category: item.category, brand: "Generic", unit: "unit" }));
-  const extraPrices = [];
-  const insertedExtra = extraProducts.length > 0 ? await Product.insertMany(extraProducts) : [];
-  for (let i = 0; i < insertedExtra.length; i++) {
-    const item = filteredGroceries[i];
-    storeNames.forEach((store, idx) => {
-      extraPrices.push({ productId: insertedExtra[i]._id, store, price: item.prices[idx] });
+  // --- Source 1: BigBasket products (real products with real prices) ---
+  if (fs.existsSync(bbPath)) {
+    await new Promise((resolve, reject) => {
+      fs.createReadStream(bbPath)
+        .pipe(csv())
+        .on("data", (row) => {
+          if (productsMap.size >= MAX_PRODUCTS) return;
+          const name = (row.product || "").trim();
+          const price = parseFloat(row.sale_price || row.market_price);
+          if (!name || isNaN(price) || price <= 0) return;
+          if (!productsMap.has(name)) {
+            productsMap.set(name, {
+              name,
+              category: row.category || "General",
+              brand: row.brand || "Generic",
+              unit: "unit",
+              basePrice: price
+            });
+          }
+        })
+        .on("end", resolve)
+        .on("error", reject);
     });
   }
-  if (extraPrices.length > 0) await Price.insertMany(extraPrices);
 
-  // Mock orders for analytics
+  // --- Source 2: WFP grocery_prices.csv (fills remaining slots) ---
+  if (fs.existsSync(wfpPath) && productsMap.size < MAX_PRODUCTS) {
+    await new Promise((resolve, reject) => {
+      fs.createReadStream(wfpPath)
+        .pipe(csv())
+        .on("data", (row) => {
+          if (productsMap.size >= MAX_PRODUCTS) return;
+          const name = (row.product_name || "").trim();
+          const price = parseFloat(row.price);
+          if (!name || isNaN(price) || price <= 0) return;
+          if (!productsMap.has(name)) {
+            productsMap.set(name, {
+              name,
+              category: row.category || "Other",
+              brand: row.brand || "Generic",
+              unit: row.unit || "unit",
+              basePrice: price
+            });
+          }
+        })
+        .on("end", resolve)
+        .on("error", reject);
+    });
+  }
+
+  // --- Insert Products ---
+  const productDocs = Array.from(productsMap.values()).map(p => ({
+    name: p.name,
+    category: p.category,
+    brand: p.brand,
+    unit: p.unit
+  }));
+  const insertedProducts = await Product.insertMany(productDocs);
+
+  // --- Insert Prices (all 6 stores per product) ---
+  const pricesData = [];
+  insertedProducts.forEach((product, i) => {
+    const basePrice = Array.from(productsMap.values())[i].basePrice;
+    generateStorePrices(basePrice).forEach(({ store, price }) => {
+      pricesData.push({ productId: product._id, store, price });
+    });
+  });
+  await Price.insertMany(pricesData);
+
+  // --- Mock Orders for Analytics ---
   const dummyUserId = new mongoose.Types.ObjectId();
-  const allInserted = [...insertedProducts, ...insertedExtra];
   const ordersData = [];
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 10; i++) {
     const orderDate = new Date();
-    orderDate.setDate(orderDate.getDate() - (8 - i) * 3);
+    orderDate.setDate(orderDate.getDate() - (10 - i) * 2);
     const orderItems = [];
     let totalCost = 0, savings = 0;
-    for (let j = 0; j < 4; j++) {
-      const product = allInserted[Math.floor(Math.random() * allInserted.length)];
-      const price = Math.floor(Math.random() * 200) + 50;
+    for (let j = 0; j < 5; j++) {
+      const product = insertedProducts[Math.floor(Math.random() * insertedProducts.length)];
+      const price = Math.floor(Math.random() * 300) + 50;
       orderItems.push({
         productName: product.name,
         quantity: 1,
         price,
-        store: storeNames[Math.floor(Math.random() * storeNames.length)],
+        store: STORES[Math.floor(Math.random() * STORES.length)],
         category: product.category
       });
       totalCost += price;
-      savings += Math.floor(price * 0.15);
+      savings += Math.floor(price * 0.12);
     }
     ordersData.push({ userId: dummyUserId, items: orderItems, totalCost, savings, date: orderDate });
   }
   await Order.insertMany(ordersData);
 
   return {
-    products: insertedProducts.length + insertedExtra.length,
-    prices: pricesData.length + extraPrices.length,
+    products: insertedProducts.length,
+    prices: pricesData.length,
     orders: ordersData.length
   };
 };
 
-// Allow running directly: node scripts/seedFromCSV.js
+// Run directly
 if (require.main === module) {
   const dotenv = require("dotenv");
   dotenv.config();
   const uri = process.env.MONGO_URI || "mongodb://localhost:27017/smartcart-ai";
   mongoose.connect(uri)
-    .then(() => seedFromCSV(uri))
-    .then(result => { console.log("Seeded:", result); process.exit(0); })
-    .catch(err => { console.error(err); process.exit(1); });
+    .then(() => seedFromCSV())
+    .then(r => { console.log("✅ Seeded:", r); process.exit(0); })
+    .catch(err => { console.error("❌", err); process.exit(1); });
 }
 
 module.exports = seedFromCSV;
