@@ -1,14 +1,18 @@
 const OpenAI = require("openai");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Only initialize OpenAI if the API key is provided (prevents crash on Render)
+const openai = process.env.OPENAI_API_KEY
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  : null;
 
 // Initialize Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "dummy_key");
 
 exports.getAISuggestions = async (req, res) => {
+  if (!openai) {
+    return res.status(503).json({ message: "OpenAI API key not configured. AI suggestions are unavailable." });
+  }
   try {
     const { cart, prices } = req.body;
 
