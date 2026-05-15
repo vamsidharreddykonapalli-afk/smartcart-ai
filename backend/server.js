@@ -74,18 +74,38 @@ app.use("/api/analytics", analyticsRoutes);
 const aiRoutes = require("./routes/aiRoutes");
 app.use("/api/ai", aiRoutes);
 
-// One-time Seed Route - imports real grocery_prices.csv data into Atlas
+// Seed Route - responds immediately, processes in background to avoid timeout
+let seedStatus = { running: false, done: false, result: null, error: null };
+
 app.get("/api/seed", async (req, res) => {
   if (req.query.secret !== "smartcart-seed-2024") {
     return res.status(403).json({ message: "Forbidden" });
   }
-  try {
-    const seedFromCSV = require("./scripts/seedFromCSV");
-    const result = await seedFromCSV();
-    res.json({ success: true, message: `✅ Seeded ${result.products} real products, ${result.prices} prices, ${result.orders} orders from grocery_prices.csv into MongoDB Atlas!` });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+
+  // Check status
+  if (req.query.status === "1") {
+    return res.json(seedStatus);
   }
+
+  if (seedStatus.running) {
+    return res.json({ message: "⏳ Seed already running, check /api/seed?secret=smartcart-seed-2024&status=1" });
+  }
+
+  // Respond immediately — process in background
+  seedStatus = { running: true, done: false, result: null, error: null };
+  res.json({ message: "⏳ Seed started in background! Check progress at /api/seed?secret=smartcart-seed-2024&status=1 in ~30 seconds." });
+
+  // Run seed async (non-blocking)
+  const seedFromCSV = require("./scripts/seedFromCSV");
+  seedFromCSV()
+    .then(result => {
+      seedStatus = { running: false, done: true, result, error: null };
+      console.log("✅ Seed complete:", result);
+    })
+    .catch(err => {
+      seedStatus = { running: false, done: false, result: null, error: err.message };
+      console.error("❌ Seed error:", err.message);
+    });
 });
 
 
