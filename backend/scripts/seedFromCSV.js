@@ -1,12 +1,11 @@
 /**
- * SmartCart AI - Comprehensive Dataset Seeder
- * Uses all 4 Kaggle datasets:
- *   1. bigbasket_products.csv      → Real product catalog with BigBasket prices
- *   2. Grocery_Inventory_Dataset   → Extra grocery products with unit prices
- *   3. data/raw/archiven/2026.csv  → India mandi prices (Min/Max/Modal) for fresh produce
- *   4. grocery_prices.csv          → Multi-store price data (backup)
+ * SmartCart AI - Seed using SIMPLE item names only
+ * Sources:
+ *   1. data/raw/archiven/2026.csv  → India mandi commodity names (Tomato, Onion, Rice, etc.)
+ *   2. Grocery_Inventory_Dataset   → Simple grocery product names
+ *   3. Hardcoded common items      → Milk, Curd, Butter, Eggs, Atta, Dal etc.
  * 
- * MongoDB usage: ~15-30MB (well within 512MB Atlas free tier)
+ * BigBasket is NOT used as product names (names are too long/descriptive)
  */
 
 const mongoose = require("mongoose");
@@ -18,9 +17,8 @@ const Price = require("../models/Price");
 const Order = require("../models/Order");
 
 const STORES = ["BigBasket", "Zepto", "Blinkit", "Instamart", "JioMart", "Amazon Fresh"];
-const MAX_PRODUCTS = 1200;
 
-// Store pricing multipliers relative to base price
+// Realistic price multipliers per store
 const MULTIPLIERS = {
   "BigBasket":    1.00,
   "Zepto":        1.06,
@@ -30,125 +28,164 @@ const MULTIPLIERS = {
   "Amazon Fresh": 1.02,
 };
 
-function jitter(val, pct = 0.08) {
-  return Math.round(val * (1 + (Math.random() * pct * 2 - pct)));
+function jitter(val, pct = 0.06) {
+  return Math.max(1, Math.round(val * (1 + (Math.random() * pct * 2 - pct))));
 }
 
-function generateStorePrices(basePrice) {
-  return STORES.map(store => ({
-    store,
-    price: Math.max(1, jitter(basePrice * MULTIPLIERS[store]))
-  }));
+function storePrice(base) {
+  return STORES.map(s => ({ store: s, price: jitter(base * MULTIPLIERS[s]) }));
 }
 
-async function readCSV(filePath, onRow, limit = Infinity) {
-  if (!fs.existsSync(filePath)) return;
-  let count = 0;
+async function readCSV(filePath, onRow) {
+  if (!fs.existsSync(filePath)) { console.warn("Missing:", filePath); return; }
   return new Promise((resolve, reject) => {
-    fs.createReadStream(filePath)
-      .pipe(csv())
-      .on("data", (row) => { if (count < limit) { onRow(row); count++; } })
-      .on("end", resolve)
-      .on("error", reject);
+    fs.createReadStream(filePath).pipe(csv())
+      .on("data", onRow).on("end", resolve).on("error", reject);
   });
 }
 
 const seedFromCSV = async () => {
-  console.log("🌱 Starting SmartCart comprehensive seed...");
+  console.log("🌱 Seeding SmartCart (simple item names only)...");
   await Product.deleteMany({});
   await Price.deleteMany({});
   await Order.deleteMany({});
-  console.log("✅ Cleared old data.");
 
   const DATA = path.join(__dirname, "..", "data");
-  const productsMap = new Map(); // name (lowercase) → { name, category, brand, basePrice }
+  const productsMap = new Map(); // key: lowercase name → { name, category, basePrice, mandiMin, mandiMax }
 
   // ─────────────────────────────────────────────────────────────
-  // SOURCE 1: BigBasket Products (real retail products + prices)
+  // HARDCODED COMMON ITEMS (guaranteed to be in DB with good prices)
   // ─────────────────────────────────────────────────────────────
-  const bbPath = path.join(DATA, "bigbasket_products.csv");
-  await readCSV(bbPath, (row) => {
-    if (productsMap.size >= MAX_PRODUCTS) return;
-    const name = (row.product || "").trim();
-    const price = parseFloat(row.sale_price) || parseFloat(row.market_price);
-    if (!name || !price || price <= 0 || price > 50000) return;
-    const key = name.toLowerCase();
-    if (!productsMap.has(key)) {
-      productsMap.set(key, {
-        name,
-        category: (row.category || "General").trim(),
-        brand: (row.brand || "Generic").trim(),
-        basePrice: price,
-        source: "bigbasket"
-      });
-    }
-  });
-  console.log(`📦 BigBasket: ${productsMap.size} products loaded`);
+  const COMMON = [
+    // Dairy
+    { name: "Milk",           category: "Dairy",    price: 60  },
+    { name: "Curd",           category: "Dairy",    price: 45  },
+    { name: "Butter",         category: "Dairy",    price: 55  },
+    { name: "Paneer",         category: "Dairy",    price: 85  },
+    { name: "Ghee",           category: "Dairy",    price: 580 },
+    { name: "Eggs",           category: "Dairy",    price: 90  },
+    { name: "Cheese",         category: "Dairy",    price: 120 },
+    { name: "Buttermilk",     category: "Dairy",    price: 30  },
+    // Staples
+    { name: "Atta",           category: "Staples",  price: 280 },
+    { name: "Maida",          category: "Staples",  price: 45  },
+    { name: "Sooji",          category: "Staples",  price: 40  },
+    { name: "Basmati Rice",   category: "Staples",  price: 220 },
+    { name: "Poha",           category: "Staples",  price: 55  },
+    { name: "Toor Dal",       category: "Staples",  price: 140 },
+    { name: "Moong Dal",      category: "Staples",  price: 130 },
+    { name: "Chana Dal",      category: "Staples",  price: 95  },
+    { name: "Urad Dal",       category: "Staples",  price: 145 },
+    { name: "Masoor Dal",     category: "Staples",  price: 110 },
+    { name: "Salt",           category: "Staples",  price: 25  },
+    { name: "Sugar",          category: "Staples",  price: 50  },
+    { name: "Sunflower Oil",  category: "Staples",  price: 145 },
+    { name: "Mustard Oil",    category: "Staples",  price: 175 },
+    { name: "Coconut Oil",    category: "Staples",  price: 210 },
+    { name: "Olive Oil",      category: "Staples",  price: 680 },
+    // Produce
+    { name: "Tomato",         category: "Produce",  price: 40  },
+    { name: "Onion",          category: "Produce",  price: 35  },
+    { name: "Potato",         category: "Produce",  price: 30  },
+    { name: "Garlic",         category: "Produce",  price: 60  },
+    { name: "Ginger",         category: "Produce",  price: 80  },
+    { name: "Carrot",         category: "Produce",  price: 45  },
+    { name: "Cabbage",        category: "Produce",  price: 30  },
+    { name: "Capsicum",       category: "Produce",  price: 55  },
+    { name: "Cauliflower",    category: "Produce",  price: 40  },
+    { name: "Spinach",        category: "Produce",  price: 25  },
+    { name: "Brinjal",        category: "Produce",  price: 35  },
+    { name: "Peas",           category: "Produce",  price: 60  },
+    { name: "Cucumber",       category: "Produce",  price: 30  },
+    { name: "Green Chilli",   category: "Produce",  price: 50  },
+    { name: "Coriander",      category: "Produce",  price: 20  },
+    { name: "Mint",           category: "Produce",  price: 15  },
+    // Fruits
+    { name: "Banana",         category: "Fruits",   price: 50  },
+    { name: "Apple",          category: "Fruits",   price: 180 },
+    { name: "Mango",          category: "Fruits",   price: 120 },
+    { name: "Orange",         category: "Fruits",   price: 80  },
+    { name: "Grapes",         category: "Fruits",   price: 90  },
+    { name: "Watermelon",     category: "Fruits",   price: 60  },
+    { name: "Papaya",         category: "Fruits",   price: 45  },
+    { name: "Pomegranate",    category: "Fruits",   price: 150 },
+    { name: "Pineapple",      category: "Fruits",   price: 70  },
+    { name: "Guava",          category: "Fruits",   price: 55  },
+    // Bakery & Snacks
+    { name: "Bread",          category: "Bakery",   price: 42  },
+    { name: "Brown Bread",    category: "Bakery",   price: 55  },
+    { name: "Biscuits",       category: "Snacks",   price: 30  },
+    { name: "Chips",          category: "Snacks",   price: 20  },
+    { name: "Namkeen",        category: "Snacks",   price: 65  },
+    { name: "Maggi",          category: "Snacks",   price: 14  },
+    { name: "Noodles",        category: "Snacks",   price: 30  },
+    // Beverages
+    { name: "Tea",            category: "Beverages",price: 280 },
+    { name: "Coffee",         category: "Beverages",price: 350 },
+    { name: "Juice",          category: "Beverages",price: 120 },
+    { name: "Cold Drink",     category: "Beverages",price: 45  },
+    { name: "Water",          category: "Beverages",price: 20  },
+    // Spices
+    { name: "Turmeric",       category: "Spices",   price: 65  },
+    { name: "Chilli Powder",  category: "Spices",   price: 75  },
+    { name: "Coriander Powder",category:"Spices",   price: 55  },
+    { name: "Cumin",          category: "Spices",   price: 125 },
+    { name: "Garam Masala",   category: "Spices",   price: 95  },
+    { name: "Pepper",         category: "Spices",   price: 200 },
+    { name: "Cardamom",       category: "Spices",   price: 350 },
+    // Meat & Protein
+    { name: "Chicken",        category: "Meat",     price: 280 },
+    { name: "Mutton",         category: "Meat",     price: 750 },
+    { name: "Fish",           category: "Meat",     price: 350 },
+    // Household
+    { name: "Shampoo",        category: "Personal Care", price: 185 },
+    { name: "Soap",           category: "Personal Care", price: 42  },
+    { name: "Toothpaste",     category: "Personal Care", price: 95  },
+    { name: "Hand Wash",      category: "Personal Care", price: 115 },
+    { name: "Detergent",      category: "Household",price: 250 },
+    { name: "Dish Wash",      category: "Household",price: 65  },
+    { name: "Floor Cleaner",  category: "Household",price: 120 },
+  ];
+
+  for (const item of COMMON) {
+    productsMap.set(item.name.toLowerCase(), {
+      name: item.name,
+      category: item.category,
+      basePrice: item.price,
+      source: "hardcoded"
+    });
+  }
+  console.log(`✅ Hardcoded: ${productsMap.size} common items`);
 
   // ─────────────────────────────────────────────────────────────
-  // SOURCE 2: Grocery Inventory & Sales Dataset (archive 4)
-  // ─────────────────────────────────────────────────────────────
-  const invPath = path.join(DATA, "raw", "Grocery_Inventory_and_Sales_Dataset.csv");
-  await readCSV(invPath, (row) => {
-    if (productsMap.size >= MAX_PRODUCTS) return;
-    const name = (row.Product_Name || "").trim();
-    const priceStr = (row.Unit_Price || "").replace(/[$,\s]/g, "");
-    const price = parseFloat(priceStr) * 83; // Convert USD → INR approx
-    if (!name || !price || price <= 0) return;
-    const key = name.toLowerCase();
-    if (!productsMap.has(key)) {
-      productsMap.set(key, {
-        name,
-        category: (row.Catagory || row.Category || "Grocery").trim(),
-        brand: (row.Supplier_Name || "Generic").trim(),
-        basePrice: Math.round(price),
-        source: "inventory"
-      });
-    }
-  });
-  console.log(`📦 After Inventory dataset: ${productsMap.size} products`);
-
-  // ─────────────────────────────────────────────────────────────
-  // SOURCE 3: India Mandi Prices 2026 (archive 3 / wfp)
-  // For fresh produce — use Modal_Price as base, Min/Max for store range
+  // Mandi 2026.csv — simple commodity names (Mousambi, Bhindi, etc.)
   // ─────────────────────────────────────────────────────────────
   const mandiPath = path.join(DATA, "raw", "archiven", "2026.csv");
-  const mandiPriceMap = new Map(); // commodity → { min, max, modal } (per quintal → convert to per kg)
+  const mandiMap = new Map(); // commodity → { min, max, modal }
 
   await readCSV(mandiPath, (row) => {
     const commodity = (row.Commodity || "").trim();
     const modal = parseFloat(row.Modal_Price);
-    const min = parseFloat(row.Min_Price);
-    const max = parseFloat(row.Max_Price);
     if (!commodity || !modal || modal <= 0) return;
-
-    // Mandi prices are per QUINTAL (100kg), convert to per KG retail
-    const retailModal = Math.round((modal / 100) * 1.4); // +40% retail margin
-    const retailMin   = Math.round((min   / 100) * 1.2);
-    const retailMax   = Math.round((max   / 100) * 1.6);
-
-    if (!mandiPriceMap.has(commodity)) {
-      mandiPriceMap.set(commodity, { modal: retailModal, min: retailMin, max: retailMax });
-    } else {
-      // Average multiple entries for same commodity
-      const existing = mandiPriceMap.get(commodity);
-      mandiPriceMap.set(commodity, {
-        modal: Math.round((existing.modal + retailModal) / 2),
-        min:   Math.round((existing.min   + retailMin  ) / 2),
-        max:   Math.round((existing.max   + retailMax  ) / 2),
+    // Convert per-quintal → per-kg retail price (+40% margin)
+    const retailPrice = Math.round((modal / 100) * 1.4);
+    if (retailPrice < 1 || retailPrice > 5000) return;
+    if (!mandiMap.has(commodity)) {
+      mandiMap.set(commodity, {
+        modal: retailPrice,
+        min: Math.round((parseFloat(row.Min_Price || modal) / 100) * 1.2),
+        max: Math.round((parseFloat(row.Max_Price || modal) / 100) * 1.6),
       });
     }
   });
 
-  // Add mandi fresh produce to product map
-  for (const [commodity, prices] of mandiPriceMap.entries()) {
-    if (productsMap.size >= MAX_PRODUCTS) break;
+  // Add mandi items not already in hardcoded list
+  for (const [commodity, prices] of mandiMap.entries()) {
     const key = commodity.toLowerCase();
-    if (!productsMap.has(key) && prices.modal > 0 && prices.modal < 2000) {
+    if (!productsMap.has(key) && commodity.length <= 40) {
       productsMap.set(key, {
         name: commodity,
         category: "Fresh Produce",
-        brand: "Farm Fresh",
         basePrice: prices.modal,
         mandiMin: prices.min,
         mandiMax: prices.max,
@@ -156,98 +193,84 @@ const seedFromCSV = async () => {
       });
     }
   }
-  console.log(`📦 After Mandi data: ${productsMap.size} products`);
+  console.log(`✅ After mandi: ${productsMap.size} items`);
 
   // ─────────────────────────────────────────────────────────────
-  // INSERT PRODUCTS INTO MONGODB
+  // Grocery Inventory CSV — short product names only (< 35 chars)
+  // ─────────────────────────────────────────────────────────────
+  const invPath = path.join(DATA, "raw", "Grocery_Inventory_and_Sales_Dataset.csv");
+  await readCSV(invPath, (row) => {
+    const name = (row.Product_Name || "").trim();
+    if (!name || name.length > 35) return; // Skip long names
+    const priceStr = (row.Unit_Price || "").replace(/[$,\s]/g, "");
+    const price = Math.round(parseFloat(priceStr) * 83); // USD → INR
+    if (!price || price <= 0 || price > 10000) return;
+    const key = name.toLowerCase();
+    if (!productsMap.has(key)) {
+      productsMap.set(key, {
+        name,
+        category: (row.Catagory || "Grocery").trim(),
+        basePrice: price,
+        source: "inventory"
+      });
+    }
+  });
+  console.log(`✅ After inventory: ${productsMap.size} items`);
+
+  // ─────────────────────────────────────────────────────────────
+  // INSERT INTO MONGODB
   // ─────────────────────────────────────────────────────────────
   const productValues = Array.from(productsMap.values());
-  const productDocs = productValues.map(p => ({
-    name: p.name,
-    category: p.category,
-    brand: p.brand || "Generic",
-    unit: "unit"
-  }));
+  const insertedProducts = await Product.insertMany(
+    productValues.map(p => ({ name: p.name, category: p.category, brand: "Generic", unit: "unit" }))
+  );
+  console.log(`✅ Inserted ${insertedProducts.length} products`);
 
-  const insertedProducts = await Product.insertMany(productDocs);
-  console.log(`✅ Inserted ${insertedProducts.length} products into MongoDB`);
-
-  // ─────────────────────────────────────────────────────────────
-  // INSERT PRICES (6 stores per product)
-  // ─────────────────────────────────────────────────────────────
   const pricesData = [];
   insertedProducts.forEach((product, i) => {
     const src = productValues[i];
-    const base = src.basePrice;
-
     if (src.source === "mandi" && src.mandiMin && src.mandiMax) {
-      // Use real mandi min/max to spread store prices authentically
       const range = src.mandiMax - src.mandiMin;
       STORES.forEach((store, idx) => {
-        const price = Math.max(1, Math.round(
-          src.mandiMin + (range * (idx / STORES.length)) + jitter(range * 0.1)
-        ));
-        pricesData.push({ productId: product._id, store, price });
+        pricesData.push({ productId: product._id, store, price: Math.max(1, Math.round(src.mandiMin + (range * idx / STORES.length) + jitter(range * 0.05))) });
       });
     } else {
-      // Use multiplier-based pricing for branded products
-      generateStorePrices(base).forEach(({ store, price }) => {
+      storePrice(src.basePrice).forEach(({ store, price }) => {
         pricesData.push({ productId: product._id, store, price });
       });
     }
   });
-
   await Price.insertMany(pricesData);
-  console.log(`✅ Inserted ${pricesData.length} price records`);
+  console.log(`✅ Inserted ${pricesData.length} prices`);
 
-  // ─────────────────────────────────────────────────────────────
-  // MOCK ORDERS FOR ANALYTICS DASHBOARD
-  // ─────────────────────────────────────────────────────────────
-  const dummyUserId = new mongoose.Types.ObjectId();
-  const ordersData = [];
+  // Mock orders
+  const uid = new mongoose.Types.ObjectId();
+  const orders = [];
   for (let i = 0; i < 12; i++) {
-    const orderDate = new Date();
-    orderDate.setDate(orderDate.getDate() - (12 - i) * 2);
-    const orderItems = [];
-    let totalCost = 0, savings = 0;
-    const numItems = 3 + Math.floor(Math.random() * 5);
-    for (let j = 0; j < numItems; j++) {
-      const product = insertedProducts[Math.floor(Math.random() * Math.min(insertedProducts.length, 200))];
-      const price = Math.floor(Math.random() * 250) + 30;
-      orderItems.push({
-        productName: product.name,
-        quantity: 1 + Math.floor(Math.random() * 3),
-        price,
-        store: STORES[Math.floor(Math.random() * STORES.length)],
-        category: product.category
-      });
-      totalCost += price;
-      savings += Math.floor(price * 0.12);
+    const d = new Date(); d.setDate(d.getDate() - (12 - i) * 2);
+    const items = []; let total = 0, savings = 0;
+    for (let j = 0; j < 5; j++) {
+      const p = insertedProducts[Math.floor(Math.random() * Math.min(80, insertedProducts.length))];
+      const pr = Math.floor(Math.random() * 250) + 30;
+      items.push({ productName: p.name, quantity: 1, price: pr, store: STORES[Math.floor(Math.random() * 6)], category: p.category });
+      total += pr; savings += Math.floor(pr * 0.12);
     }
-    ordersData.push({ userId: dummyUserId, items: orderItems, totalCost, savings, date: orderDate });
+    orders.push({ userId: uid, items, totalCost: total, savings, date: d });
   }
-  await Order.insertMany(ordersData);
-  console.log(`✅ Inserted ${ordersData.length} mock orders`);
+  await Order.insertMany(orders);
 
-  const result = {
-    products: insertedProducts.length,
-    prices: pricesData.length,
-    orders: ordersData.length,
-    estimatedMongoMB: Math.round((insertedProducts.length * 0.2 + pricesData.length * 0.1) / 1024 * 10) / 10
-  };
-  console.log("🎉 Seed complete:", result);
+  const result = { products: insertedProducts.length, prices: pricesData.length, orders: orders.length };
+  console.log("🎉 Seed done:", result);
   return result;
 };
 
-// Allow running directly: node scripts/seedFromCSV.js
 if (require.main === module) {
   const dotenv = require("dotenv");
   dotenv.config();
-  const uri = process.env.MONGO_URI || "mongodb://localhost:27017/smartcart-ai";
-  mongoose.connect(uri)
+  mongoose.connect(process.env.MONGO_URI || "mongodb://localhost:27017/smartcart-ai")
     .then(() => seedFromCSV())
-    .then(r => { console.log("✅ Done:", r); process.exit(0); })
-    .catch(err => { console.error("❌ Error:", err.message); process.exit(1); });
+    .then(r => { console.log("✅", r); process.exit(0); })
+    .catch(err => { console.error("❌", err.message); process.exit(1); });
 }
 
 module.exports = seedFromCSV;
