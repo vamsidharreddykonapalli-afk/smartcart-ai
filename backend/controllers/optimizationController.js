@@ -1,8 +1,7 @@
 const Cart = require("../models/Cart");
 const Product = require("../models/Product");
 const Price = require("../models/Price");
-
-const { getSearchRegex } = require("../utils/productMatcher");
+const { findBestMatch } = require("../utils/productMatcher");
 
 exports.optimizeCart = async (req, res) => {
   try {
@@ -17,8 +16,8 @@ exports.optimizeCart = async (req, res) => {
     let originalCost = 0;
 
     for (let item of cart.items) {
-      // Improved matching: Case-insensitive regex with basic plural/singular handling
-      const product = await Product.findOne({ name: { $regex: getSearchRegex(item.productName) } });
+      // Smart tiered match: exact → starts-with → word-boundary → contains
+      const product = await findBestMatch(Product, item.productName);
 
       if (!product) {
         console.warn(`Product not found: ${item.productName}`);

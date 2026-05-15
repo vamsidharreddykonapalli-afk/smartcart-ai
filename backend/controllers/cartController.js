@@ -1,6 +1,6 @@
 const Cart = require("../models/Cart");
 const Product = require("../models/Product");
-const { getSearchRegex } = require("../utils/productMatcher");
+const { findBestMatch } = require("../utils/productMatcher");
 
 // GET CART
 exports.getCart = async (req, res) => {
@@ -17,9 +17,8 @@ exports.addItem = async (req, res) => {
   try {
     const { productName, quantity } = req.body;
 
-    // Case-insensitive fuzzy match
-    const searchRegex = new RegExp(productName.trim(), "i");
-    const productExists = await Product.findOne({ name: { $regex: searchRegex } });
+    // Smart tiered match: exact → starts-with → word-boundary → contains
+    const productExists = await findBestMatch(Product, productName);
     if (!productExists) {
       return res.status(400).json({ message: `No product like '${productName}' found. Try: Milk, Tomato, Onion, Rice, Chicken, Eggs, Atta, Apple, Banana.` });
     }
