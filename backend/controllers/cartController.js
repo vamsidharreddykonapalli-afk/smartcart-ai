@@ -17,10 +17,14 @@ exports.addItem = async (req, res) => {
   try {
     const { productName, quantity } = req.body;
 
-    const productExists = await Product.findOne({ name: { $regex: getSearchRegex(productName) } });
+    // Fuzzy match: case-insensitive, partial name match
+    const searchRegex = new RegExp(productName.trim(), "i");
+    const productExists = await Product.findOne({ name: { $regex: searchRegex } });
     if (!productExists) {
-      return res.status(400).json({ message: `There is no product like '${productName}' in our grocery database.` });
+      return res.status(400).json({ message: `There is no product like '${productName}' in our grocery database. Try: Milk, Tomato, Onion, Rice, Chicken, Eggs, Atta, Apple, Banana.` });
     }
+    // Use the actual matched product name for consistency
+    const matchedName = productExists.name;
 
     let cart = await Cart.findOne({ userId: req.user });
 
