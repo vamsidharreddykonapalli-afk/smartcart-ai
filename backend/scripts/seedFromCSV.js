@@ -96,22 +96,24 @@ const seedFromCSV = async (mongoURI) => {
     { name: "Banana", category: "Fruits", prices: [50, 48, 52, 49, 46, 54] },
     { name: "Apple", category: "Fruits", prices: [180, 170, 190, 177, 165, 195] },
     { name: "Mango", category: "Fruits", prices: [120, 115, 125, 118, 110, 130] },
+    { name: "Watermelon", category: "Fruits", prices: [60, 55, 65, 58, 52, 68] },
+    { name: "Grapes", category: "Fruits", prices: [90, 85, 95, 88, 82, 98] },
+    { name: "Orange", category: "Fruits", prices: [80, 75, 85, 78, 72, 88] },
   ];
+  // Remove items already seeded from CSV to avoid duplicate key errors
+  const csvNames = new Set(Array.from(productsMap.keys()).map(n => n.toLowerCase()));
+  const filteredGroceries = commonGroceries.filter(item => !csvNames.has(item.name.toLowerCase()));
 
-  const extraProducts = [];
+  const extraProducts = filteredGroceries.map(item => ({ name: item.name, category: item.category, brand: "Generic", unit: "unit" }));
   const extraPrices = [];
-  for (const item of commonGroceries) {
-    const p = { name: item.name, category: item.category, brand: "Generic", unit: "unit" };
-    extraProducts.push(p);
-  }
-  const insertedExtra = await Product.insertMany(extraProducts);
+  const insertedExtra = extraProducts.length > 0 ? await Product.insertMany(extraProducts) : [];
   for (let i = 0; i < insertedExtra.length; i++) {
-    const item = commonGroceries[i];
+    const item = filteredGroceries[i];
     storeNames.forEach((store, idx) => {
       extraPrices.push({ productId: insertedExtra[i]._id, store, price: item.prices[idx] });
     });
   }
-  await Price.insertMany(extraPrices);
+  if (extraPrices.length > 0) await Price.insertMany(extraPrices);
 
   // Mock orders for analytics
   const dummyUserId = new mongoose.Types.ObjectId();
