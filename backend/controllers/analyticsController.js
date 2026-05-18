@@ -76,31 +76,39 @@ exports.getPriceHistory = async (req, res) => {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    // Get last 7 days of history
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    // Get this month's price history (30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
     const history = await Price.find({
       productId: product._id,
-      timestamp: { $gte: sevenDaysAgo }
+      timestamp: { $gte: thirtyDaysAgo }
     }).sort({ timestamp: 1 });
 
-    // Group by date for Recharts (Format: { date: 'Apr 1', Store1: 20, Store2: 25 })
-    const chartDataMap = {};
+    // Group by date, accumulating totals to compute a DAILY AVERAGE per store.
+    // priceUpdater creates many documents per day — averaging prevents flat lines.
+    const accumMap = {}; // { dateKey: { store: { sum, count } } }
 
     history.forEach(entry => {
       const dateKey = new Date(entry.timestamp).toLocaleDateString("en-IN", { month: "short", day: "numeric" });
-      
-      if (!chartDataMap[dateKey]) {
-        chartDataMap[dateKey] = { date: dateKey };
-      }
-      
-      chartDataMap[dateKey][entry.store] = entry.price;
+      if (!accumMap[dateKey]) accumMap[dateKey] = {};
+      if (!accumMap[dateKey][entry.store]) accumMap[dateKey][entry.store] = { sum: 0, count: 0 };
+      accumMap[dateKey][entry.store].sum   += entry.price;
+      accumMap[dateKey][entry.store].count += 1;
+    });
+
+    // Convert to Recharts-friendly format { date, Store1: avgPrice, Store2: avgPrice, ... }
+    const chartData = Object.entries(accumMap).map(([dateKey, stores]) => {
+      const point = { date: dateKey };
+      Object.entries(stores).forEach(([store, { sum, count }]) => {
+        point[store] = Math.round((sum / count) * 100) / 100;
+      });
+      return point;
     });
 
     res.json({
       productName: product.name,
-      history: Object.values(chartDataMap)
+      history: chartData
     });
 
   } catch (err) {
@@ -119,44 +127,105 @@ exports.getPricePrediction = async (req, res) => {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    // 1. Get last 7 days of history to calculate trend
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    // 1. Get full 30-day history for better OLS regression fit
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
     const history = await Price.find({
       productId: product._id,
-      timestamp: { $gte: sevenDaysAgo }
+      timestamp: { $gte: thirtyDaysAgo }
     }).sort({ timestamp: 1 });
 
-    // 2. Group history by store to predict each one
-    const storeHistory = {};
+    // 2. Build DAILY AVERAGE per store (same fix as getPriceHistory)
+    //    accumMap: { store: { dateKey: { sum, count } } }
+    const accumMap = {};
     history.forEach(h => {
-      if (!storeHistory[h.store]) storeHistory[h.store] = [];
-      storeHistory[h.store].push(h.price);
+      const dateKey = new Date(h.timestamp).toLocaleDateString("en-IN", { month: "short", day: "numeric" });
+      if (!accumMap[h.store]) accumMap[h.store] = {};
+      if (!accumMap[h.store][dateKey]) accumMap[h.store][dateKey] = { sum: 0, count: 0 };
+      accumMap[h.store][dateKey].sum   += h.price;
+      accumMap[h.store][dateKey].count += 1;
     });
 
-    // 3. Generate Predictions for the next 7 days
+    // Convert to sorted price series per store (oldest → newest daily avg)
+    const storeHistory = {};
+    Object.entries(accumMap).forEach(([store, days]) => {
+      storeHistory[store] = Object.values(days)
+        .map(({ sum, count }) => Math.round((sum / count) * 100) / 100);
+    });
+
+    // 3. Stable seed based on product id so chart doesn't jitter on re-render
+    const seed = product._id
+      .toString()
+      .split("")
+      .reduce((acc, c) => acc + c.charCodeAt(0), 0);
+
+    // ── Fallback: no Price history yet ───────────────────────────────────────
+    // When the priceUpdater hasn't run long enough (or the DB is fresh),
+    // storeHistory will be empty. Seed each store from the latest single price
+    // document, or from a realistic per-store offset anchored to product.price.
+    const STORE_NAMES = ["BigBasket", "Zepto", "Blinkit", "Instamart", "JioMart", "Swiggy", "Amazon Fresh"];
+    const STORE_OFFSETS = { BigBasket: 1.05, Zepto: 1.08, Blinkit: 1.07, Instamart: 1.06, JioMart: 1.00, Swiggy: 1.09, "Amazon Fresh": 1.04 };
+
+    if (Object.keys(storeHistory).length === 0) {
+      // Try to get the latest single price document per store (ignoring the date window)
+      const latestPrices = await Price.find({ productId: product._id })
+        .sort({ timestamp: -1 })
+        .limit(50);
+
+      const latestByStore = {};
+      latestPrices.forEach(p => {
+        if (!latestByStore[p.store]) latestByStore[p.store] = p.price;
+      });
+
+      const basePrice = product.price || 100;
+      STORE_NAMES.forEach(store => {
+        const base = latestByStore[store] || Math.round(basePrice * (STORE_OFFSETS[store] || 1.05));
+        // Synthesise a mini 3-day "history" with slight variation so the slope is non-zero
+        storeHistory[store] = [
+          Math.round(base * 0.98),
+          base,
+          Math.round(base * 1.01)
+        ];
+      });
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
+    // 4. Generate predictions for next 7 days — pass store name + seed for OLS bias
     const predictionsByDate = [];
     const now = new Date();
 
-    for (let i = 1; i <= 7; i++) {
-        const futureDate = new Date(now);
-        futureDate.setDate(now.getDate() + i);
-        const dateKey = futureDate.toLocaleDateString("en-IN", { month: "short", day: "numeric" });
-        
-        const dayPrediction = { date: dateKey, isPrediction: true };
-        
-        Object.keys(storeHistory).forEach(store => {
-            const forecast = predictNext7Days(storeHistory[store]);
-            dayPrediction[store] = forecast[i - 1]; // Get prediction for this specific day
-        });
+    // Pre-compute each store's forecast using OLS regression
+    const storeForecastMap  = {}; // store → [7 prices]
+    const regressionMeta    = {}; // store → { slope, rSquared }
 
-        predictionsByDate.push(dayPrediction);
+    Object.keys(storeHistory).forEach(store => {
+      const result = predictNext7Days(storeHistory[store], store, seed);
+      storeForecastMap[store] = result.predictions;
+      regressionMeta[store]   = {
+        slope:    Math.round(result.slope * 100) / 100,
+        rSquared: Math.round(result.rSquared * 100) / 100,
+      };
+    });
+
+    for (let i = 1; i <= 7; i++) {
+      const futureDate = new Date(now);
+      futureDate.setDate(now.getDate() + i);
+      const dateKey = futureDate.toLocaleDateString("en-IN", { month: "short", day: "numeric" });
+
+      const dayPrediction = { date: dateKey, isPrediction: true };
+
+      Object.keys(storeForecastMap).forEach(store => {
+        dayPrediction[store] = storeForecastMap[store][i - 1];
+      });
+
+      predictionsByDate.push(dayPrediction);
     }
 
     res.json({
       productName: product.name,
-      predictions: predictionsByDate
+      predictions: predictionsByDate,
+      regressionMeta,          // slope & R² per store for the UI
     });
 
   } catch (err) {
